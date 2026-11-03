@@ -8,9 +8,19 @@ models:
   strong:
     name: claude-haiku-5-5
     api: anthropic     # /v1/messages: structured outputs + prompt caching
+  # Резерв на случай таймаута или ошибки основной модели.
+  reserve_sonnet:
+    name: claude-sonnet-5-5
+    api: anthropic
+  reserve_haiku45:
+    name: claude-haiku-4-5
+    api: anthropic
+  reserve_pro:
+    name: gemini-3.1-pro
+    api: openai
 
 # Самая сильная модель из нужных маршрутов побеждает; инструменты объединяются.
-model_rank: [fast, strong]
+model_rank: [fast, strong]  # резервные модели в выборе маршрута не участвуют
 
 routes:
   product:      {agent: fast,   tools: [],              policy: [P1]}
@@ -29,12 +39,20 @@ injection_agent: strong
 verifier_for:
   fast: strong
   strong: fast
+  reserve_sonnet: fast
+  reserve_haiku45: fast
+  reserve_pro: strong
+
+# До 4 резервных моделей подряд при таймауте или ошибке, разные семейства через одну.
+error_fallback:
+  fast: [strong, reserve_pro, reserve_sonnet, reserve_haiku45]
+  strong: [fast, reserve_sonnet, reserve_pro, reserve_haiku45]
 
 limits:
   max_tool_calls: 3
   tool_timeout_s: 5
-  request_timeout_s: 60
-  request_retries: 2
+  request_timeout_s: 45
+  request_retries: 0   # повторы делаем сами — на другой модели
   # С запасом: модели за прокси тратят ~500 токенов на рассуждения, при 600 JSON обрезался.
   max_tokens:
     agent: 3000

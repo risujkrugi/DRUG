@@ -28,7 +28,8 @@ VERIFIER_SCHEMA = {
                        "required": ["claim", "reason"], "additionalProperties": False}}},
     "required": ["ok", "violations"], "additionalProperties": False,
 }
-MAX_ATTEMPTS = 2
+MAX_ATTEMPTS = 2        # попытки по качеству: guard / верификатор / JSON
+MAX_ERROR_RETRIES = 4   # дополнительные попытки на других моделях при таймауте или ошибке
 
 
 class Reply(BaseModel):
@@ -173,7 +174,13 @@ class Assistant:
         issues: list[str] = []
         agent_key = route.agent
         attempts = []
-        for attempt in range(MAX_ATTEMPTS):
+        # Цепочка моделей на случай таймаута или ошибки: основная + до MAX_ERROR_RETRIES резервных.
+        # Сбой модели не тратит попытку и не показывает пользователю шаблон — просто пробуем следующую.
+        chain = [agent_key] + [k for k in config.routes()["error_fallback"][agent_key] if k != agent_key]
+        chain = chain[:MAX_ERROR_RETRIES + 1]
+        attempt, errors = 0, 0
+        while attempt < MAX_ATTEMPTS:
+            agent_key = chain[min(errors, len(chain) - 1)]
             tool_results.clear()
             seen.clear()
             user = f'<policy version="{config.policy()["version"]}">\n{policy}\n</policy>\n{_customer(text)}'
@@ -185,11 +192,14 @@ class Assistant:
                                        schema=config.answer_schema(), tools=tool_specs, tool_runner=run_tool,
                                        max_tokens=self.limits["max_tokens"]["agent"],
                                        max_tool_calls=self.limits["max_tool_calls"])
-            except Exception as e:  # прокси недоступен, отказ модели, лимит инструментов
+            except Exception as e:  # таймаут, прокси недоступен, отказ модели, лимит инструментов
                 trace.llm("agent", route.model_name(agent_key), None, {}, 0, error=type(e).__name__)
-                attempts.append({"attempt": attempt, "error": type(e).__name__})
-                agent_key = config.routes()["verifier_for"][agent_key]  # резерв: вторая модель пары
+                attempts.append({"attempt": attempt, "model": route.model_name(agent_key), "error": type(e).__name__})
+                errors += 1
+                if errors >= len(chain):
+                    break  # все резервные модели перепробованы
                 continue
+            attempt += 1
             trace.llm("agent", r.model, r.returned_model, r.usage, r.ms, calls=r.calls)
             self._spend(r.usage)
 
