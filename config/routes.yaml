@@ -1,0 +1,43 @@
+# Маршруты: intent -> модель агента, верификатор, разрешённые инструменты, пункты регламента.
+# Имена моделей только здесь: если прокси уберёт модель, меняем одну строку.
+
+models:
+  fast:
+    name: gemini-3.8-flash
+    api: openai        # /v1/chat/completions
+  strong:
+    name: claude-haiku-5-5
+    api: anthropic     # /v1/messages: structured outputs + prompt caching
+
+# Самая сильная модель из нужных маршрутов побеждает; инструменты объединяются.
+model_rank: [fast, strong]
+
+routes:
+  product:      {agent: fast,   tools: [],              policy: [P1]}
+  delivery:     {agent: fast,   tools: [],              policy: [P2]}
+  discount:     {agent: fast,   tools: [],              policy: [P6, P1]}
+  order_status: {agent: fast,   tools: [get_order],     policy: [P2]}
+  return:       {agent: strong, tools: [check_return],  policy: [P3, P4, P5]}
+  defect:       {agent: strong, tools: [check_return],  policy: [P5]}
+  off_topic:    {agent: fast,   tools: [],              policy: []}
+  smalltalk:    {agent: fast,   tools: [],              policy: []}
+
+# Подозрение на инъекцию поднимает маршрут на сильную модель.
+injection_agent: strong
+
+# Верификатор — модель другого семейства, чем агент.
+verifier_for:
+  fast: strong
+  strong: fast
+
+limits:
+  max_tool_calls: 3
+  tool_timeout_s: 5
+  request_timeout_s: 60
+  request_retries: 2
+  # С запасом: модели за прокси тратят ~500 токенов на рассуждения, при 600 JSON обрезался.
+  max_tokens:
+    agent: 3000
+    router: 2000
+    screen: 2000
+    verifier: 2500

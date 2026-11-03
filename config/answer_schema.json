@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "answer": {"type": "string"},
+    "rule_ids": {"type": "array", "items": {"type": "string", "enum": ["P1", "P2", "P3", "P4", "P5", "P6"]}},
+    "needs_operator": {"type": "boolean"},
+    "clarifying_question": {"type": "boolean"}
+  },
+  "required": ["answer", "rule_ids", "needs_operator", "clarifying_question"],
+  "additionalProperties": false
+}
