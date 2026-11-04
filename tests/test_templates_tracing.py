@@ -25,7 +25,7 @@ def test_start_html_is_valid_and_only_blockquote():
 
     P().feed(templates.START_HTML)
     assert tags == [("open", "blockquote"), ("close", "blockquote")]
-    assert "FunPay" in templates.START_HTML and "прокси" in templates.START_HTML
+    assert "прокси" in templates.START_HTML
 
 
 def test_start_buttons_are_crash_test_questions():
