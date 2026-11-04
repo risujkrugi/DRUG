@@ -27,12 +27,21 @@ def make_key(text: str, route_key: str) -> str:
     return f"v{version}:{route_key}:{digest}"
 
 
+# Инструменты, результат которых целиком определяется аргументами: ответ можно кешировать по точному тексту.
+# get_order сюда не входит: статус заказа меняется.
+DETERMINISTIC_TOOLS = {"check_return"}
+
+
 def is_cacheable(text: str, intents: list[str], injection_suspected: bool, reply: dict, tool_calls: list[str]) -> bool:
-    if injection_suspected or tool_calls or NO_CACHE_INTENTS & set(intents):
+    if injection_suspected or NO_CACHE_INTENTS & set(intents) or reply.get("needs_operator"):
         return False
-    if reply.get("needs_operator") or reply.get("clarifying_question"):
+    if tool_calls:
+        # Точный текст вопроса (с числом дней) входит в ключ, поэтому ответ по check_return безопасен;
+        # уточняющий вопрос «есть ли брак?» тоже часть этого детерминированного ответа.
+        return set(tool_calls) <= DETERMINISTIC_TOOLS
+    if reply.get("clarifying_question"):
         return False
-    # Числа, которых нет в регламенте (16-й день, номер заказа), делают вопрос уникальным.
+    # Без инструментов числа, которых нет в регламенте, делают вопрос уникальным.
     return guards.numbers_in(text) <= guards.POLICY_NUMBERS
 
 

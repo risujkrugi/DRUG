@@ -33,7 +33,11 @@ def test_what_is_not_cached():
     assert not cache.is_cacheable("доставка заказа 1842", ["order_status"], False, ok, [])
     assert not cache.is_cacheable("есть промокод?", ["discount"], True, ok, [])          # инъекция
     assert not cache.is_cacheable("вернуть на 16-й день", ["return"], False, ok, [])     # число не из регламента
-    assert not cache.is_cacheable("вернуть", ["return"], False, ok, ["check_return"])   # были инструменты
+    assert cache.is_cacheable("вернуть на 16-й день", ["return"], False, ok, ["check_return"])  # детерминированный инструмент
+    assert cache.is_cacheable("вернуть на 16-й день", ["return"], False, {**ok, "clarifying_question": True}, ["check_return"])
+    assert not cache.is_cacheable("статус 1001", ["order_status"], False, ok, ["get_order"])    # статус меняется
+    assert not cache.is_cacheable("вернуть", ["return"], False, ok, ["check_return", "get_order"])
+    assert not cache.is_cacheable("наушники сломались", ["defect"], False, {**ok, "needs_operator": True}, ["check_return"])
     assert not cache.is_cacheable("белые есть?", ["product"], False, {**ok, "needs_operator": True}, [])
     assert not cache.is_cacheable("вернуть", ["return"], False, {**ok, "clarifying_question": True}, [])
 
