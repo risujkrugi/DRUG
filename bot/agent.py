@@ -28,7 +28,7 @@ VERIFIER_SCHEMA = {
                        "required": ["claim", "reason"], "additionalProperties": False}}},
     "required": ["ok", "violations"], "additionalProperties": False,
 }
-MAX_ATTEMPTS = 2        # попытки по качеству: guard / верификатор / JSON
+MAX_ATTEMPTS = 3        # попытки по качеству: guard / верификатор / JSON
 MAX_ERROR_RETRIES = 4   # дополнительные попытки на других моделях при таймауте или ошибке
 
 
@@ -181,12 +181,15 @@ class Assistant:
         attempt, errors = 0, 0
         while attempt < MAX_ATTEMPTS:
             agent_key = chain[min(errors, len(chain) - 1)]
-            tool_results.clear()
-            seen.clear()
+            # Результаты инструментов сохраняем между попытками: код детерминирован, и повторный вызов
+            # с теми же аргументами вернул бы то же самое. Иначе повторная попытка без вызова ловила бы guard.
             user = f'<policy version="{config.policy()["version"]}">\n{policy}\n</policy>\n{_customer(text)}'
             if issues:
                 user += "\n<previous_draft_issues>\n" + "\n".join(f"- {i}" for i in issues) + \
-                        "\n</previous_draft_issues>\nИсправь эти проблемы в новом ответе."
+                        "\n</previous_draft_issues>"
+                if tool_results:
+                    user += "\n<tool_results>\n" + json.dumps(tool_results, ensure_ascii=False) + "\n</tool_results>"
+                user += "\nИсправь эти проблемы в новом ответе."
             try:
                 r = await self.llm.run(agent_key, config.prompt("system"), messages + [{"role": "user", "content": user}],
                                        schema=config.answer_schema(), tools=tool_specs, tool_runner=run_tool,
